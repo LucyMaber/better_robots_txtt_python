@@ -10,9 +10,6 @@
     The robots.txt Exclusion Protocol is implemented as specified in
     http://www.robotstxt.org/norobots-rfc.txt
 """
-
-import asyncio
-import collections
 import urllib.parse
 import urllib.request
 import re
@@ -191,9 +188,6 @@ class RobotFileParser:
                             entry.req_rates.append(RequestRateTime(
                                 doc, time, metrics, start, end))
                             state = 2
-
-                # elif line[0] == "request-rate":
-                #     pass
                 elif line[0] == "sitemap":
                     # According to http://www.sitemaps.org/protocol.html
                     # "This directive is independent of the user-agent line,
