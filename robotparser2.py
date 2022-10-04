@@ -10,9 +10,15 @@
     The robots.txt Exclusion Protocol is implemented as specified in
     http://www.robotstxt.org/norobots-rfc.txt
 """
+
 import urllib.parse
 import urllib.request
 import re
+patton_time = r"([0-9][0-9]):([0-9][0-9])[- ]([0-9][0-9]):([0-9][0-9])"
+
+patton_robot_version_3 = r"([0-9]*)\.([0-9]*)\.([0-9]*)"
+patton_robot_version_2 = r"([0-9]*)\.([0-9]*)"
+
 patton_time = r"([0-9][0-9]):([0-9][0-9])[- ]([0-9][0-9]):([0-9][0-9])"
 patton_request_rate = r"([0-9]*)/([0-9]*)([wdhms])?"
 patton_request_rate_time = r"([0-9]*)/([0-9]*)([wdhms])? ([0-9][0-9]):([0-9][0-9])[ -]([0-9][0-9]):([0-9][0-9])"
@@ -30,13 +36,14 @@ def checkTime_range(time_now, end, start):
     return (time_now <= end) and (time_now >= start)
 
 
-class RobotFileParser:
+class RobotFileParser2:
     """ This class provides a set of methods to read, parse and answer
     questions about a single robots.txt file.
 
     """
 
     def __init__(self, url=''):
+        self._regex = False
         self.entries = []
         self.sitemaps = []
         self.indexpage = []
@@ -150,6 +157,27 @@ class RobotFileParser:
                             RuleLine(line[1], False, index=True))
                         state = 2
 
+                elif line[0] == "robot-version":
+                    if re.match(patton_robot_version_3, line[1]):
+                        numbers = re.search(patton_robot_version_3, line[1])
+                        major = int(numbers[0])
+                        minor = int(numbers[1])
+                        patch = int(numbers[2])
+                        if major == 2:
+                            if minor == 0 and patch == 0:
+                                pass
+                            else:
+                                pass
+
+                        pass
+                    if re.match(patton_robot_version_2, line[1]):
+                        numbers = re.search(patton_robot_version_2, line[1])
+                        major = int(numbers[0])
+                        minor = int(numbers[1])
+                        if major == 2:
+                            if minor == 0:
+                                pass
+                        pass
                 elif line[0] == "crawl-delay":
                     if state != 0:
                         # before trying to convert to int we need to make
@@ -220,10 +248,10 @@ class RobotFileParser:
             url = "/"
         for entry in self.entries:
             if entry.applies_to(useragent):
-                return entry.allowance(url)
+                return entry.allowance(url, self._regex)
         # try the default entry last
         if self.default_entry:
-            return self.default_entry.allowance(url)
+            return self.default_entry.allowance(url, self._regex)
         # agent not found ==> access granted
         return True
 
@@ -273,7 +301,7 @@ class RobotFileParser:
         if not self.mtime():
             return None
         for entry in self.entries:
-            # look in all enrtys
+            # look in all entry
             if entry.applies_to(useragent):
                 for req_rate in entry.req_rates:
                     if req_rate.check(time):
@@ -318,8 +346,16 @@ class RuleLine:
         self.allowance = allowance
         self.index = index
 
-    def applies_to(self, filename):
-        return self.path == "*" or filename.startswith(self.path)
+    def applies_to(self, filename, can_regx=False):
+        if not can_regx:
+            return self.path == "*" or filename.startswith(self.path)
+        elif self.path == "*":
+            return True
+        elif filename.startswith(self.path):
+            return True
+        else:
+            pattern = re.compile(self.path)
+            return bool(re.match(pattern, filename))
 
     def __str__(self):
         return ("Allow" if self.allowance else "Disallow") + ": " + self.path
@@ -414,11 +450,11 @@ class Entry:
                 return True
         return False
 
-    def allowance(self, filename):
+    def allowance(self, filename, can_regx=False):
         """Preconditions:
         - our agent applies to this entry
         - filename is URL decoded"""
         for line in self.rulelines:
-            if line.applies_to(filename):
+            if line.applies_to(filename, can_regx=can_regx):
                 return line.allowance
         return True
